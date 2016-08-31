@@ -1,15 +1,20 @@
 #pragma once
 
+#include <iostream>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string>
+
+using namespace std;
 
 #define __DEBUG__
 
-static string GetFileName(const string& path)
+static string GetFileName(const string& path)  //获取文件名
 {
-	char ch = '/';
 
-#ifdef _WIN32
+	char ch = '/';  //兼容性设置
+
+#ifdef _WIN32       //_win32下是双杠
 	ch = '\\';
 #endif
 
@@ -23,6 +28,7 @@ static string GetFileName(const string& path)
 		return path.substr(pos + 1);
 	}
 }
+
 // 用于调试追溯的trace log
 inline static void __trace_debug(const char* function,
 			const char* filename, int line, char* format, ...) 
@@ -45,24 +51,23 @@ inline static void __trace_debug(const char* function,
 
 ////////////////////////////////////////////////////////////////////////////
 // 以下是模拟实现SGI STL30版的内存配置器。
-// ps:这个版本对应的是侯捷老师《STL源码剖析》这本书的代码版本，这里模拟实现主要用于教学。
 
 // SimpleAlloc统一封装的内存分配的接口
 template<class T, class Alloc>
 class SimpleAlloc
 {
 public:
-	static T *Allocate(size_t n)
+	static T *Allocate(size_t n)  //申请空间 带参
 	{ 
 		return 0 == n? 0 : (T*) Alloc::Allocate(n * sizeof (T));
 	}
 
-	static T *Allocate(void)
+	static T *Allocate(void)    //无参
 	{
 		return (T*) Alloc::Allocate(sizeof (T));
 	}
 
-	static void Deallocate(T *p, size_t n)
+	static void Deallocate(T *p, size_t n)    //对应上边的
 	{
 		if (0 != n) Alloc::Deallocate(p, n * sizeof (T)); 
 	}
@@ -77,13 +82,16 @@ public:
 // 一级空间配置器（malloc/realloc/free）
 //
 
-// 内存分配失败以后处理的句柄handler类型
-typedef void(*ALLOC_OOM_FUN)();
+// 内存分配失败以后处理的句柄 handler 类型
+typedef void(*ALLOC_OOM_FUN)();  //ALLOC_OOM_FUN是一种指向函数的指针类型的名字。
+                                 //该指针类型为“指向返回void类型无参的函数的指针”
+
 template <int inst>
 class __MallocAllocTemplate
 {
 private:
-	//static void (* __sMallocAllocOomHandler)();
+
+	//static void (* __sMallocAllocOomHandler)();   //和下面的等价
 	static ALLOC_OOM_FUN __sMallocAllocOomHandler;
 
 	static void * OomMalloc(size_t n)
@@ -97,7 +105,7 @@ private:
 		// 有则调用以后再分配。不断重复这个过程，直到分配成功为止。
 		// 没有设置处理的handler，则直接结束程序。
 		//
-		for (;;) {
+		for (;;) {   //死循环
 			handler = __sMallocAllocOomHandler;
 			if (0 == handler)
 			{
@@ -262,10 +270,10 @@ void* __DefaultAllocTemplate<threads, inst>::Refill(size_t n)
 	{
 		cur->_freeListLink = (Obj*)(chunk+n*i);
 		cur = cur->_freeListLink;
-	}
+	} //出去用掉的一个128字节的内存块，其余逐块连接在后边
 
-	cur->_freeListLink = NULL;
-	return result;
+	cur->_freeListLink = NULL; //最后链表尾付空
+	return result;  //返回申请得到的空间
 }
 
 template <bool threads, int inst>
@@ -385,7 +393,7 @@ void* __DefaultAllocTemplate<threads, inst>::Allocate(size_t n)
 	{
 		__TRACE_DEBUG("自由链表取内存:_freeList[%d]\n", index);
 
-		_freeList[index] = head->_freeListLink;
+		_freeList[index] = head->_freeListLink; //让其头指向后边，我要拿走头
 		return head;
 	}
 }
@@ -452,15 +460,15 @@ void Test1()
 	// 测试调用二级配置器分配内存
 	cout<<"测试调用二级配置器分配内存"<<endl;
 	char*p2 = SimpleAlloc<char, Alloc>::Allocate(128);
-	char*p3 = SimpleAlloc<char, Alloc>::Allocate(128);
+	char*p3 = SimpleAlloc<char, Alloc>::Allocate(128);  //申请同样的空间 会去自由链表中取的
 	char*p4 = SimpleAlloc<char, Alloc>::Allocate(128);
-	char*p5 = SimpleAlloc<char, Alloc>::Allocate(128);
+	char*p5 = SimpleAlloc<char, Alloc>::Allocate(128);  //第一次分配的内存，就够128调用20次
 	SimpleAlloc<char, Alloc>::Deallocate(p2, 128);
 	SimpleAlloc<char, Alloc>::Deallocate(p3, 128);
 	SimpleAlloc<char, Alloc>::Deallocate(p4, 128);
 	SimpleAlloc<char, Alloc>::Deallocate(p5, 128);
 
-	for (int i = 0; i < 21; ++i)
+	for (int i = 0; i < 41; ++i)
 	{
 		printf("测试第%d次分配\n", i+1);
 		char*p = SimpleAlloc<char, Alloc>::Allocate(128);
